@@ -14,7 +14,7 @@ RUN make package-build
 
 
 FROM --platform=$BUILDPLATFORM  alpine:latest
-
+RUN  mkdir -p  /bin/prometheus/web/ui/static/react
 COPY --from=builder /go/src/prometheus/build/prometheus   /bin/prometheus
 COPY --from=builder /go/src/prometheus/build/promtool     /bin/promtool
 COPY --from=builder /go/src/prometheus/documentation/examples/prometheus.yml  /etc/prometheus/prometheus.yml
