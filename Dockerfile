@@ -14,7 +14,7 @@ RUN make package-build
 
 
 FROM --platform=$BUILDPLATFORM  alpine:latest
-RUN  mkdir -p  /bin/prometheus/web/ui/static/react
+
 COPY --from=builder /go/src/prometheus/build/prometheus   /bin/prometheus
 COPY --from=builder /go/src/prometheus/build/promtool     /bin/promtool
 COPY --from=builder /go/src/prometheus/documentation/examples/prometheus.yml  /etc/prometheus/prometheus.yml
@@ -23,7 +23,7 @@ COPY --from=builder /go/src/prometheus/consoles/                              /u
 COPY --from=builder /go/src/prometheus/LICENSE                                /LICENSE
 COPY --from=builder /go/src/prometheus/NOTICE                                 /NOTICE
 COPY --from=builder /go/src/prometheus/npm_licenses.tar.bz2                   /npm_licenses.tar.bz2
-COPY --from=builder /go/src/prometheus/web/ui/static/react/index.html         /bin/prometheus/web/ui/static/react/index.html
+COPY --from=builder /go/src/prometheus/web/ui/static/react/index.html         /bin/web/ui/static/react/index.html
 
 WORKDIR /prometheus
 RUN ln -s /usr/share/prometheus/console_libraries /usr/share/prometheus/consoles/ /etc/prometheus/ && \
