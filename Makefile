@@ -26,7 +26,7 @@ ifeq ($(ENABLE_JOURNALD), 1)
 endif
 
 REGISTRY=registry.eecos.cn:7443/ecf-edge/prom
-TAG?=v2.45.1
+TAG?=v2.37.1
 HarborIMAGE:=$(REGISTRY)/prometheus:$(TAG)
 
 PROMTOOL = ./promtool
