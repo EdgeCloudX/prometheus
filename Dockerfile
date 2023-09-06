@@ -23,7 +23,7 @@ COPY --from=builder /go/src/prometheus/consoles/                              /u
 COPY --from=builder /go/src/prometheus/LICENSE                                /LICENSE
 COPY --from=builder /go/src/prometheus/NOTICE                                 /NOTICE
 COPY --from=builder /go/src/prometheus/npm_licenses.tar.bz2                   /npm_licenses.tar.bz2
-COPY --from=builder /go/src/prometheus/web/ui/static                         /prometheus/web/ui/static
+COPY --from=builder /go/src/prometheus/web                                    /prometheus/web
 
 WORKDIR /prometheus
 RUN ln -s /usr/share/prometheus/console_libraries /usr/share/prometheus/consoles/ /etc/prometheus/ && \
