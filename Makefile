@@ -12,11 +12,22 @@
 # limitations under the License.
 
 # Needs to be defined before including Makefile.common to auto-generate targets
-DOCKER_ARCHS ?= amd64 armv7 arm64 ppc64le s390x
-
+DOCKER_ARCHS ?= amd64 armv7 arm64
+DOCKER_PLATFORMS ?= linux/amd64,linux/armv7,linux/arm64
+IMAGE ?= prom/prometheus
 UI_PATH = web/ui
 UI_NODE_MODULES_PATH = $(UI_PATH)/node_modules
 REACT_APP_NPM_LICENSES_TARBALL = "npm_licenses.tar.bz2"
+CGO_ENABLED:=0
+
+ifeq ($(ENABLE_JOURNALD), 1)
+	CGO_ENABLED:=1
+	LOGCOUNTER=./bin/log-counter
+endif
+
+REGISTRY=registry.eecos.cn:7443/ecf-edge/prom
+TAG?=v2.45.1
+HarborIMAGE:=$(REGISTRY)/prometheus:$(TAG)
 
 PROMTOOL = ./promtool
 TSDB_BENCHMARK_NUM_METRICS ?= 1000
@@ -95,6 +106,17 @@ assets-tarball: assets
 	@echo '>> packaging assets'
 	scripts/package_assets.sh
 
+# We only want to generate the parser when there's changes to the grammar.
+.PHONY: parser
+parser:
+	@echo ">> running goyacc to generate the .go file."
+ifeq (, $(shell which goyacc))
+	@echo "goyacc not installed so skipping"
+	@echo "To install: go install golang.org/x/tools/cmd/goyacc@v0.6.0"
+else
+	goyacc -o promql/parser/generated_parser.y.go promql/parser/generated_parser.y
+endif
+
 .PHONY: test
 # If we only want to only test go code we have to change the test target
 # which is called by all.
@@ -107,14 +129,16 @@ endif
 .PHONY: npm_licenses
 npm_licenses: ui-install
 	@echo ">> bundling npm licenses"
-	rm -f $(REACT_APP_NPM_LICENSES_TARBALL)
-	find $(UI_NODE_MODULES_PATH) -iname "license*" | tar cfj $(REACT_APP_NPM_LICENSES_TARBALL) --transform 's/^/npm_licenses\//' --files-from=-
+	rm -f $(REACT_APP_NPM_LICENSES_TARBALL) npm_licenses
+	ln -s . npm_licenses
+	find npm_licenses/$(UI_NODE_MODULES_PATH) -iname "license*" | tar cfj $(REACT_APP_NPM_LICENSES_TARBALL) --files-from=-
+	rm -f npm_licenses
 
 .PHONY: tarball
 tarball: npm_licenses common-tarball
 
 .PHONY: docker
-docker: npm_licenses common-docker
+docker:  package
 
 plugins/plugins.go: plugins.yml plugins/generate.go
 	@echo ">> creating plugins list"
@@ -123,8 +147,15 @@ plugins/plugins.go: plugins.yml plugins/generate.go
 .PHONY: plugins
 plugins: plugins/plugins.go
 
+package:
+		docker buildx create --use
+		docker buildx build  --platform $(DOCKER_PLATFORMS) -t $(HarborIMAGE) --push .
 .PHONY: build
-build: assets npm_licenses assets-compress common-build plugins
+build: assets npm_licenses assets-compress plugins common-build
+#amd64 armv7 arm64 ppc64le
+package-build: $(PKG_SOURCES)
+	CGO_ENABLED=$(CGO_ENABLED) GOOS=linux GO111MODULE=on go build -o build/prometheus ./cmd/prometheus
+	CGO_ENABLED=$(CGO_ENABLED) GOOS=linux GO111MODULE=on go build -o build/promtool ./cmd/promtool
 
 .PHONY: bench_tsdb
 bench_tsdb: $(PROMU)
@@ -137,3 +168,8 @@ bench_tsdb: $(PROMU)
 	@$(GO) tool pprof --alloc_space -svg $(PROMTOOL) $(TSDB_BENCHMARK_OUTPUT_DIR)/mem.prof > $(TSDB_BENCHMARK_OUTPUT_DIR)/memprof.alloc.svg
 	@$(GO) tool pprof -svg $(PROMTOOL) $(TSDB_BENCHMARK_OUTPUT_DIR)/block.prof > $(TSDB_BENCHMARK_OUTPUT_DIR)/blockprof.svg
 	@$(GO) tool pprof -svg $(PROMTOOL) $(TSDB_BENCHMARK_OUTPUT_DIR)/mutex.prof > $(TSDB_BENCHMARK_OUTPUT_DIR)/mutexprof.svg
+
+.PHONY: cli-documentation
+cli-documentation:
+	$(GO) run ./cmd/prometheus/ --write-documentation > docs/command-line/prometheus.md
+	$(GO) run ./cmd/promtool/ write-documentation > docs/command-line/promtool.md
